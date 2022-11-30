@@ -32,6 +32,10 @@ from pytorch_lightning.loggers import TestTubeLogger
 from datasets import global_val
 
 import random
+from pytorch_lightning.loggers import WandbLogger
+
+
+wandb_logger = WandbLogger(project="hanerf-testing")
 
 class NeRFSystem(LightningModule):
     def __init__(self, hparams):
@@ -46,6 +50,7 @@ class NeRFSystem(LightningModule):
 
         self.embeddings = {'xyz': self.embedding_xyz,
                            'dir': self.embedding_dir}
+        print("encoding", hparams.encode_a, hparams.use_mask)
 
         if hparams.encode_a:
             self.enc_a = E_attr(3, hparams.N_a)
@@ -227,8 +232,8 @@ class NeRFSystem(LightningModule):
                                                   stack, self.global_step)
             else:
                 stack = torch.stack([img_gt, img, depth]) # (3, 3, H, W)
-                self.logger.experiment.add_images('train/GT_pred_depth',
-                                                  stack, self.global_step)
+                # self.logger.experiment.add_images('train/GT_pred_depth',
+                #                                   stack, self.global_step)
         
         return loss
 
@@ -275,8 +280,8 @@ class NeRFSystem(LightningModule):
                                                       stack, self.global_step)
                 else:
                     stack = torch.stack([img_gt, img, depth, mask]) # (4, 3, H, W)
-                    self.logger.experiment.add_images('val/GT_pred_depth_mask',
-                                                      stack, self.global_step)
+                    # self.logger.experiment.add_images('val/GT_pred_depth_mask',
+                    #                                   stack, self.global_step)
             elif 'rgb_fine_random' in results:
                 img_random = results[f'rgb_fine_random'].detach().view(H, W, 3).permute(2, 0, 1).cpu() # (3, H, W)
                 stack = torch.stack([img_gt, img, depth, img_random]) # (4, 3, H, W)
@@ -330,7 +335,7 @@ def main(hparams):
     trainer = Trainer(max_epochs=hparams.num_epochs,
                       checkpoint_callback=checkpoint_callback,
                       resume_from_checkpoint=hparams.ckpt_path,
-                      logger=logger,
+                      logger=wandb_logger,
                       weights_summary=None,
                       progress_bar_refresh_rate=hparams.refresh_every,
                       gpus= hparams.num_gpus,

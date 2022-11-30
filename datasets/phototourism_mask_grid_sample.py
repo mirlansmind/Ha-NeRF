@@ -34,10 +34,10 @@ class PhototourismDataset(Dataset):
         assert img_downscale >= 1, 'image can only be downsampled, please set img_downscale>=1!'
         self.img_downscale = img_downscale
 
-        if ('hagia_sophia_interior' in self.root_dir) or ('taj_mahal' in self.root_dir):
-            self.img_downscale_appearance = 4
-        else:
-            self.img_downscale_appearance = 8
+        # if ('hagia_sophia_interior' in self.root_dir) or ('taj_mahal' in self.root_dir):
+        #     self.img_downscale_appearance = 4
+        # else:
+        #     self.img_downscale_appearance = 8
 
         if split == 'val': # image downscale=1 will cause OOM in val mode
             self.img_downscale = max(2, self.img_downscale)
@@ -56,7 +56,8 @@ class PhototourismDataset(Dataset):
 
     def read_meta(self):
         # read all files in the tsv first (split to train and test later)
-        tsv = glob.glob(os.path.join(self.root_dir, '*.tsv'))[0]
+        # tsv = glob.glob(os.path.join(self.root_dir, '*.tsv'))[0]
+        tsv = os.path.join(self.root_dir, 'output.tsv')
         self.scene_name = os.path.basename(tsv)[:-4]
         self.files = pd.read_csv(tsv, sep='\t')
         self.files = self.files[~self.files['id'].isnull()] # remove data without id
@@ -71,7 +72,7 @@ class PhototourismDataset(Dataset):
             with open(os.path.join(self.root_dir, f'cache/image_paths.pkl'), 'rb') as f:
                 self.image_paths = pickle.load(f)
         else:
-            imdata = read_images_binary(os.path.join(self.root_dir, 'dense/sparse/images.bin'))
+            imdata = read_images_binary(os.path.join(self.root_dir, 'dense/0/sparse/images.bin'))
             img_path_to_id = {}
             for v in imdata.values():
                 img_path_to_id[v.name] = v.id
@@ -89,10 +90,10 @@ class PhototourismDataset(Dataset):
                 self.Ks = pickle.load(f)
         else:
             self.Ks = {} # {id: K}
-            camdata = read_cameras_binary(os.path.join(self.root_dir, 'dense/sparse/cameras.bin'))
+            camdata = read_cameras_binary(os.path.join(self.root_dir, 'dense/0/sparse/cameras.bin'))
             for id_ in self.img_ids:
                 K = np.zeros((3, 3), dtype=np.float32)
-                cam = camdata[id_]
+                cam = camdata[1]
                 img_w, img_h = int(cam.params[2]*2), int(cam.params[3]*2)
                 img_w_, img_h_ = img_w//self.img_downscale, img_h//self.img_downscale
                 K[0, 0] = cam.params[0]*img_w_/img_w # fx
@@ -126,7 +127,7 @@ class PhototourismDataset(Dataset):
             with open(os.path.join(self.root_dir, f'cache/fars.pkl'), 'rb') as f:
                 self.fars = pickle.load(f)
         else:
-            pts3d = read_points3d_binary(os.path.join(self.root_dir, 'dense/sparse/points3D.bin'))
+            pts3d = read_points3d_binary(os.path.join(self.root_dir, 'dense/0/sparse/points3D.bin'))
             self.xyz_world = np.array([pts3d[p_id].xyz for p_id in pts3d])
             xyz_world_h = np.concatenate([self.xyz_world, np.ones((len(self.xyz_world), 1))], -1)
             # Compute near and far bounds for each image individually
@@ -180,7 +181,7 @@ class PhototourismDataset(Dataset):
                 for id_ in self.img_ids_train:
                     c2w = torch.FloatTensor(self.poses_dict[id_])
 
-                    img = Image.open(os.path.join(self.root_dir, 'dense/images',
+                    img = Image.open(os.path.join(self.root_dir, 'dense/0/images',
                                                   self.image_paths[id_])).convert('RGB')
                     img_w, img_h = img.size
                     if self.img_downscale > 1:
@@ -189,14 +190,14 @@ class PhototourismDataset(Dataset):
                         img_rs = img.resize((img_w, img_h), Image.LANCZOS)
                     img_rs = self.transform(img_rs) # (3, h, w)
 
-                    img_8 = img.resize((img_w//self.img_downscale_appearance, img_h//self.img_downscale_appearance), Image.LANCZOS)
+                    img_8 = img.resize((img_w//self.img_downscale, img_h//self.img_downscale), Image.LANCZOS)
                     img_8 = self.normalize(self.transform(img_8)) # (3, h, w)
                     self.all_imgs += [img_8]
                     self.all_imgs_wh += [torch.Tensor([img_w, img_h]).unsqueeze(0)]
                     img_rs = img_rs.view(3, -1).permute(1, 0) # (h*w, 3) RGB
                     self.all_rgbs += [img_rs]
                     
-                    directions = get_ray_directions(img_h, img_w, self.Ks[id_])
+                    directions = get_ray_directions(img_h, img_w, self.Ks[1])
                     rays_o, rays_d = get_rays(directions, c2w)
                     rays_t = id_ * torch.ones(len(rays_o), 1)
 
@@ -278,7 +279,7 @@ class PhototourismDataset(Dataset):
 
             sample['c2w'] = c2w = torch.FloatTensor(self.poses_dict[id_])
 
-            img = Image.open(os.path.join(self.root_dir, 'dense/images',
+            img = Image.open(os.path.join(self.root_dir, 'dense/0/images',
                                           self.image_paths[id_])).convert('RGB')
             img_w, img_h = img.size
             if self.img_downscale > 1:
@@ -290,7 +291,7 @@ class PhototourismDataset(Dataset):
             img_s = img_s.view(3, -1).permute(1, 0) # (h*w, 3) RGB
             sample['rgbs'] = img_s
 
-            directions = get_ray_directions(img_h, img_w, self.Ks[id_])
+            directions = get_ray_directions(img_h, img_w, self.Ks[1])
 
             rays_o, rays_d = get_rays(directions, c2w)
             rays = torch.cat([rays_o, rays_d,
@@ -308,7 +309,7 @@ class PhototourismDataset(Dataset):
             sample['uv_sample'] = uv_sample
 
             img_w, img_h = img.size
-            img_8 = img.resize((img_w//self.img_downscale_appearance, img_h//self.img_downscale_appearance), Image.LANCZOS)
+            img_8 = img.resize((img_w//self.img_downscale, img_h//self.img_downscale), Image.LANCZOS)
             img_8 = self.normalize(self.transform(img_8)) # (3, h, w)
             sample['whole_img'] = img_8
 

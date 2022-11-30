@@ -1,0 +1,12 @@
+python3.6 train_mask_grid_sample.py \
+  --root_dir /local/home/mikarimov/codebase/data/eth-hg-3ps-hard --dataset_name phototourism \
+  --save_dir /local/home/mikarimov/codebase/mycode/hanerf/ \
+  --img_downscale 4 \
+  --N_importance 64 --N_samples 64 \
+  --num_epochs 20 --batch_size 1024 \
+  --optimizer adam --lr 5e-4 --lr_scheduler cosine \
+  --exp_name exp_hanerfT_eth3-hard \
+  --N_emb_xyz 15 --N_vocab 90 \
+  --use_mask  --maskrs_max 5e-2 --maskrs_min 6e-3 --maskrs_k 1e-3 --maskrd 0 \
+  --N_a 48 --weightKL 1e-5 --weightRecA 1e-3 --weightMS 1e-6 \
+  --num_gpus 1
